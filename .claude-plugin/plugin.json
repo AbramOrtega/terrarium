@@ -1,0 +1,11 @@
+{
+  "name": "terrarium",
+  "version": "1.0.0",
+  "description": "Your conversation as a living 3D island: prompts raise hills, tool calls build trees, houses and forges, your mood sets the weather, and context fill sets the tide.",
+  "author": { "name": "AbramOrtega", "url": "https://github.com/AbramOrtega" },
+  "homepage": "https://github.com/AbramOrtega/terrarium",
+  "repository": "https://github.com/AbramOrtega/terrarium",
+  "license": "MIT",
+  "keywords": ["visualization", "3d", "pane", "fun", "webgl"],
+  "types": "./types/index.d.ts"
+}

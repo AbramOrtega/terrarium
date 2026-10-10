@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terrarium</title>
+<style>
+  :root { color-scheme: dark; --glass: #0b0f1cc4; --line: #ffffff24; --ink: #ece6da; --dim: #a8a196; --warm: #ffcf8a; }
+  html, body { margin: 0; height: 100%; background: #04060c; color: var(--ink); font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; cursor: grab; touch-action: none; }
+  canvas:active { cursor: grabbing; }
+  #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; }
+  #fallback svg { width: 100vw; height: 100vh; }
+  .panel { position: fixed; background: var(--glass); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px); box-shadow: 0 10px 40px #0007; transition: opacity .35s, transform .35s; }
+  .panel.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+  #hud { left: 16px; bottom: 16px; max-width: min(560px, calc(100vw - 32px)); padding: 12px 15px; }
+  #stats { font-weight: 650; margin-bottom: 6px; letter-spacing: .01em; }
+  #chronicle div { color: var(--dim); }
+  #chronicle div:last-child { color: #fff3dc; }
+  #legend { right: 16px; bottom: 16px; width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 110px); overflow: auto; padding: 12px 15px; font-size: 13px; }
+  #legend h3 { margin: 4px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--warm); }
+  #legend div { color: var(--dim); margin: 2px 0; }
+  #legend b { color: var(--ink); font-weight: 600; }
+  #controls { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 28px); }
+  button, .gauge { background: var(--glass); color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 6px 11px; font: inherit; cursor: pointer; backdrop-filter: blur(8px); }
+  button:hover { background: #1b2238d9; }
+  button.on { border-color: #ffcf8a88; color: var(--warm); }
+  .gauge { display: flex; gap: 7px; align-items: center; cursor: default; padding: 4px 10px; }
+  .gauge svg { display: block; }
+  .gauge b { font-weight: 650; color: var(--warm); }
+  .gauge small { color: var(--dim); }
+  #tip { position: fixed; pointer-events: none; background: #0b0f1ce8; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px; font-size: 13px; max-width: 340px; display: none; z-index: 5; }
+  #title { position: fixed; top: 16px; left: 18px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; color: #ffffffb0; text-shadow: 0 1px 8px #000; }
+  #wait { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #8b93a7; }
+  #chat { right: 16px; top: 62px; bottom: 16px; width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; z-index: 4; }
+  #chat.hidden { display: none; }
+  #chatHead { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--line); }
+  #chatHead b { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--warm); }
+  #chatState { flex: 1; color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chatClose { padding: 2px 9px; }
+  #chatLog { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; overscroll-behavior: contain; }
+  #chatLog .m { padding: 7px 10px; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+  #chatLog .user { align-self: flex-end; max-width: 88%; background: #3a2c55cc; border: 1px solid #b98aff40; }
+  #chatLog .assistant { background: #ffffff0d; border: 1px solid var(--line); }
+  #chatLog .live { border-style: dashed; }
+  #chatLog .pending { opacity: .6; }
+  #chatLog .tools { color: var(--dim); font-size: 12px; padding: 0 4px; display: flex; flex-direction: column; gap: 1px; }
+  #chatLog .tools .err { color: #ff9a8a; }
+  #chatLog pre { background: #0006; border-radius: 7px; padding: 6px 8px; margin: 4px 0; overflow-x: auto; white-space: pre; font-size: 12px; }
+  #chatLog code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: #0004; border-radius: 4px; padding: 0 3px; }
+  #chatLog pre code { background: none; padding: 0; }
+  #chatForm { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); align-items: flex-end; }
+  #chatInput { flex: 1; resize: none; min-height: 38px; max-height: 160px; background: #0007; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13px; }
+  #chatInput:focus { outline: none; border-color: #ffcf8a88; }
+  #chatNote { padding: 0 12px 8px; color: var(--dim); font-size: 11px; }
+  #tagLayer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .tag { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; padding: 2px 7px; border-radius: 7px; background: #0b0f1cd0; border: 1px solid #ffffff30; border-left: 3px solid var(--g, #ffffff30); color: #ffe3c2; font: 600 12px/1.35 ui-sans-serif, system-ui, "Segoe UI", sans-serif; white-space: nowrap; }
+  .tag small { display: block; font-weight: 500; font-size: 10.5px; color: #c9c1b4; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+  .tag small:empty { display: none; }
+  .tag.name { background: none; border: none; padding: 0; color: #fff; font-weight: 700; font-size: 11px; letter-spacing: .08em; text-shadow: 0 1px 3px #000, 0 0 7px #000b; }
+  .tag.name small { display: none; }
+  .tag.hit { border-color: #ffd27a; box-shadow: 0 0 0 1px #ffd27a80; }
+  .tag.name.hit { color: #ffd27a; }
+  #tags { left: 16px; top: 44px; width: min(290px, calc(100vw - 32px)); max-height: calc(100vh - 120px); overflow: auto; padding: 10px 13px 12px; font-size: 13px; z-index: 3; }
+  #tagHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  #tagHead b { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--warm); }
+  #tagClose { padding: 2px 9px; }
+  #tags .row { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; color: var(--dim); }
+  #tagDensity { flex: 1; accent-color: #ffcf8a; }
+  #tagDensityName { width: 38px; text-align: right; color: var(--ink); }
+  #tagGroups { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; margin: 2px 0 8px; }
+  .tg { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 2px 0; }
+  .tg input { margin: 0; accent-color: #ffcf8a; }
+  .tg i { width: 4px; height: 13px; border-radius: 2px; flex: none; }
+  .tg span { flex: 1; }
+  .tg small { color: var(--dim); font-size: 10.5px; }
+  #tags label.check { display: flex; gap: 7px; align-items: center; color: var(--dim); margin: 4px 0; cursor: pointer; }
+  #tagQuery { width: 100%; box-sizing: border-box; margin: 6px 0; background: #0007; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 13px; }
+  #tagQuery:focus { outline: none; border-color: #ffcf8a88; }
+  #tagPresets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  #tagPresets button { padding: 3px 8px; font-size: 12px; }
+  #tagNote { color: var(--dim); font-size: 11px; margin-top: 7px; }
+  #tagNote:empty { display: none; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="fallback"></div>
+<div id="wait">Waiting for the island…</div>
+<div id="title">Terrarium</div>
+<div id="controls">
+  <div class="gauge" id="sunGauge" title="The sun is the session limit: risen at 0% used, set at 100%"><svg width="44" height="22" viewBox="0 0 44 22"><path d="M3 20A19 19 0 0 1 41 20" fill="none" stroke="#ffffff33" stroke-width="2"/><circle id="sunDot" cx="3" cy="20" r="4" fill="#ffd27a"/></svg><span><b id="sunPct">–</b> <small>session</small></span></div>
+  <div class="gauge" id="moonGauge" title="The moon is the weekly limit: risen at 0% used, set at 100%"><svg width="44" height="22" viewBox="0 0 44 22"><path d="M3 20A19 19 0 0 1 41 20" fill="none" stroke="#ffffff33" stroke-width="2"/><circle id="moonDot" cx="3" cy="20" r="3.5" fill="#dfe6ff"/></svg><span><b id="moonPct">–</b> <small>week</small></span></div>
+  <button id="turtleBtn" title="Fly out to see the turtle carrying the island, and back (U)">🐢 Turtle</button>
+  <button id="orbitBtn" class="on" title="Slow orbit (O)">Orbit</button>
+  <button id="focusBtn" class="on" title="Miniature focus: the creature sharp, the rest soft (T)">Focus</button>
+  <button id="airBtn" class="on" title="The glow of air over the disc (A)">Air</button>
+  <button id="qualityBtn" title="Graphics quality: Auto steps down when frames run slow (Q)">Auto</button>
+  <button id="soundBtn" class="on" title="Sound effects on or off (M)">🔊 Sound</button>
+  <button id="chatBtn" title="The conversation: read it, and talk to Claude from here (C)">💬 Chat</button>
+  <button id="hudBtn" class="on" title="Chronicle (H)">Chronicle</button>
+  <button id="tagBtn" title="Labels: which show, and how many (N)">🏷 Labels</button>
+  <button id="legendBtn" title="What everything means (L)">Legend</button>
+  <button id="fsBtn" title="Fullscreen (F)">⛶ Fullscreen</button>
+</div>
+<div id="hud" class="panel"><div id="stats"></div><div id="chronicle"></div></div>
+<div id="legend" class="panel hidden">
+  <h3>The town</h3>
+  <div><b>Moving about</b>: drag to slide across the island, right-drag (or shift-drag) to turn (down below the rim too), scroll to come closer or back off, 🐢 Turtle (U) to fly out and see the turtle swim, double-click to go back. <b>Click the ground</b> (a click, not a drag) and the creature crawls there; after 20 seconds it crawls back to its work.</div>
+  <div><b>Chat</b> (C): the conversation itself, beside the island; what you type there goes to Claude Code as your own message, and waits its turn while Claude works.</div>
+  <div><b>Labels</b> (N switches them off and on): a short label over each thing, its colour on the left edge for its group. 🏷 Labels picks the groups, how many show (the nearest, newest and busiest first; one that would cover another waits, and hovering still tells), only what was touched lately, or a search.</div>
+  <div><b>The creature</b>: your first prompt hatches it; each one after wakes it, small again. Its legs grow with the time the turn runs, its body with the tokens it eats, and it sprouts eyes on its face as it feeds. It crawls to the middle of the files it is working on, turns to face where its tentacles reach, and curls up asleep when the turn ends.</div>
+  <div><b>Its body</b>: no ball but a heap of soft lobes under one skin, rearranging as it feeds (the faster it eats tokens, the faster they churn), one bulging toward each thing a tentacle holds. It moves like something poured: the front surges ahead and the rest follows. Buildings, trees and nests are solid to it: it presses flat against walls (pale where it touches, leaving a sheen that dries in seconds), drapes over roofs, squeezes between houses, and climbs onto the roof of a building it stands on. Its eyes ride the skin; a new one swells up from inside and opens, and now and then one sinks and opens again elsewhere. Its eight legs curve and ripple and grip with suckers.</div>
+  <div><b>What it does</b>: mouths open in the seams below its eyes and chew while Claude writes its answer, and close while it thinks; thinking, its skin boils with bubbles that rise and pop. Between tool calls a feeler tastes the air toward what it touched last, and a blink runs across its eyes each time it moves on to its next call. Waiting on you, it turns and watches you through heavy lids, blinking slowly. Asleep after a turn it twitches in a dream, and one eye cracks open toward the file it worked on most. Your ideas rise out of it as lanterns, its eyes following them up; and when you speak to it mid-turn, a shiver runs through it.</div>
+  <div><b>Spawnlings</b>: each subagent is a smaller creature of its own, laid by its parent at its type's nest. Its color is its agent type (Explore teal, Plan cobalt, general-purpose amber, any other type a color of its own; a fork wears its parent's violet); its eyes are the model it runs on (Opus lime, Sonnet gold, Haiku ice blue, Fable rose). It grows by the same rules on its own time and tokens, crawls to its own work and reaches for its own tool calls; its veins pulse with its own appetite. A <b>silk thread</b> ties it to a parent that waits on it; one in the background roams free. Done, it crawls home and sinks into its parent, whose veins flash with what it brings back; failed or stopped, it curls up where it stands until your next prompt. <b>Teammates</b> wear their names and sleep between messages; a <b>message</b> flies between creatures as a parcel. A workflow's swarm marches out of its nest in file.</div>
+  <div><b>Tentacles</b>: it reaches for what each tool call works on, each in its own way, holds on a while, and lets go. A read drinks the file in (green, swallowing); writing a file pours gold into it; an edit picks at it with pincers, sparks flying; a shell command coils round the forge, embers rising; a search hangs an eye over it, sweeping a beam; a subagent is laid as an egg in its nest; a skill blooms; an MCP call crackles. A failed call snatches its tentacle back, red. Lightning shoots up for the web; red lightning comes down for an error. Over it, the spinner's own words for what Claude is doing; asleep, eyes shut: the turn is done, or Claude is waiting on you.</div>
+  <div><b>Light and finish</b>: the creature&#39;s veins pulse with how fast it eats tokens; light ripples on the seabed when the prompt cache serves well; cloud shadows sweep the land as the CPU works; the spray off the rim thickens as the context fills; a commit sends a shooting star; grass lies flat where its feet came down. <b>Focus</b> (T) keeps the creature sharp like a miniature; <b>Quality</b> (Q) is Auto unless you pick one.</div>
+  <div><b>Buildings</b>: files written or edited, each language in its own architecture and colour: TypeScript and JavaScript townhouses, Python cottages, Rust iron forts, Go workshops, C and C++ stone keeps, CSS painted houses, HTML pavilions, Markdown libraries, JSON, YAML and TOML vaults, shell-script tool sheds, SQL silos; tests are watchtowers. Each is measured from the file itself: a floor for every doubling of its lines, a footprint as wide as its lines run, a wing for every few functions, a corner tower for each type or class, a pennant for each export (hover one for the counts). A folder makes a district. Recently edited files glow, and their chimneys smoke.</div>
+  <div><b>History in the walls</b>: each edit paints a band where it fell in the file (the top of the file at the top floor), as thick as the passage it changed, in the color of the prompt that made it, so one prompt's edits match across town. A file left alone weathers: its roof fades, moss gathers, ivy climbs. A <b>crane</b> on the roof: TODOs still to do, a crate for each. <b>Boarded windows</b>: FIXMEs. <b>Flower boxes</b>: a file that explains itself in comments. A <b>patch</b> on the wall: an edit that failed there and was later made good.</div>
+  <div><b>Streets</b>: files that import each other are joined by stone streets along the lines between plots, wider where several imports share the way; a file only read is reached by a dirt footpath. A file three or more others import stands on a paved square with lamps.</div>
+  <div><b>Parts</b>: a <b>spire</b> on an entry point (main, index, app, cli, server…); a <b>clock</b> on a file two or more others import, its hands at the time it last changed; a <b>dormer</b> for each file it imports; a <b>balcony</b> for every two times Claude read it; a <b>bay window</b> when its lines run wide; a <b>flag</b> on the most worked building of each folder.</div>
+  <div><b>At work</b>: while Claude works on a file its door stands open on a lit room. <b>Townsfolk</b> carry work between files worked one after the other in the last half hour, along the streets (hover one). Small parts appear as you come close and drop away far off, so the view stays smooth.</div>
+  <div><b>Districts</b>: each folder with two or more buildings, paved in its own stone (flagstones, cobbles, brick or slate), walled where it meets the rest of the town, open where a street runs, and entered by a gate bearing its name. A folder inside another on the island is a <b>quarter</b>: hedged instead of walled, and settled beside its parent. <b>Rope bridges</b>: a test stands beside the file it tests (by name, or else what it imports), joined to it by a bridge hung with the last test run's colors.</div>
+  <div><b>Trees in town</b>: files read. <b>Forges</b>: shell commands. <b>Beacons</b>: searches. <b>Windmills</b>: the web. <b>Nests</b>: subagents, one for each agent type, with an eggshell for every spawnling hatched there. <b>Crystals</b>: MCP servers. <b>Shrines</b>: skills. <b>Signposts</b>: questions for you. <b>Banner</b>: the plan.</div>
+  <h3>The wild</h3>
+  <div><b>Wilderness</b>: as large as the free space on the project's drive: forests, meadows, rivers and waterfalls, cliffs and snowy peaks.</div>
+  <div><b>Deer and rabbits</b>: multiply as the conversation goes on. <b>Bugs</b>: failed tool calls, around the ground they scorched. A <b>volcano</b> wakes once errors pile up.</div>
+  <div><b>Birds</b>: the web and your ideas (bats at night). <b>Fish</b>: context fill; a <b>sea serpent</b> when it is crowded. <b>Butterflies</b>: your good mood. <b>Fireflies</b>: your curiosity.</div>
+  <h3>The turtle and space</h3>
+  <div><b>The turtle</b>: the island is a disc of rock on its back, and it carries the conversation through space. It swims as fast as Claude eats tokens: while Claude thinks or writes it holds its breath and strokes hard, its long front flippers sweeping in a figure of eight, bending as they go, dust curling off their tips; while tools run it beats slowly. When the turn ends it breathes out a cloud of stardust and glides with its flippers spread, and after a minute folds them back. Each new prompt, it lifts its head, opens its beak and calls. While you are away its head is drawn into its shell; when Claude waits on you it tilts its head and watches you, blinking slowly. Its shell weathers with the session's age (paler, dustier, pocked with small craters), and each plate gains a growth ring near its edge for each compaction. Space dust streams past as fast as it swims, a fainter layer far off drifting slower.</div>
+  <div><b>The rim</b>: the sea pours over the edge all the way round and falls away into spray, thicker (and louder) as the context fills. Roots hang under the rock below each tree, longer the more often that file was read.</div>
+  <div><b>Space</b>: the stars and the Milky Way all round, a shooting star for a commit. The disc's air is a glowing dome over it in the colours of the hour, its clouds, aurora and rainbow inside; <b>Air</b> (A) turns the glow off (the aurora and rainbow stay).</div>
+  <h3>The sky and sea</h3>
+  <div><b>Sun</b>: the session limit, a small sun circling the disc: risen at the eastern rim at none used, set at the western rim when it runs out, and past that gone round beneath, lighting the turtle's belly. <b>Moon</b>: the weekly limit, the same way.</div>
+  <div><b>Rain</b>: the context window: dry below 70%, a drizzle past it, a storm near the top. The <b>tide</b> rises with it too; a compaction lets it out and leaves a monolith. Your buildings stay as they are.</div>
+  <div><b>Clouds</b>: CPU use. <b>Waves</b>: RAM use. <b>Weather colour</b>: the mood of your words. <b>Lanterns</b>: your questions and ideas.</div>
+  <div><b>Giants</b>: every program over 2% of the CPU, as tall as its load and dressed as what it is: Claude violet with the creature's lime eyes, a browser with a glowing screen on its chest, an editor with a quill and scroll, a runtime carrying a block in its language's colour, a build tool with a hammer, a shell with a lantern, the system in grey stone with a shield, media with a lute. Round with the memory it holds, bearded (and at last mossy) with the hours it has run, trailed by a small companion for each of its other processes (up to five). It climbs out of the ground when it gets busy and sits and sinks back when it goes quiet; just over the line it rests on a hill and snores, at work it strides, very busy it stomps and steams; it leans into a climbing load and yawns as it falls. It goes where it belongs: to its lighthouse if it listens on a port, after the creature if it is Claude, to the forge if it builds, beside the file being edited if it is an editor, alongside a bigger one of its own family (they nod as they meet). It walks round the town's buildings, and waves when you come back to the keyboard.</div>
+  <div>The two gauges at the top read the limits directly; where no limits are reported, the sun keeps your clock's hours.</div>
+</div>
+<div id="tags" class="panel hidden" aria-label="Labels">
+  <div id="tagHead"><b>Labels</b><button id="tagClose" title="Hide this panel">×</button></div>
+  <div class="row"><span>How many</span><input id="tagDensity" type="range" min="0" max="4" step="1"><b id="tagDensityName"></b></div>
+  <div id="tagGroups"></div>
+  <label class="check"><input id="tagRecent" type="checkbox"> Only things touched in the last 10 minutes</label>
+  <input id="tagQuery" type="search" placeholder="Find… (a file, folder, tool)" autocomplete="off" spellcheck="false">
+  <div id="tagPresets"><button data-preset="claude">Just Claude</button><button data-preset="town">Town map</button><button data-preset="machine">Machine</button><button data-preset="all">Everything</button></div>
+  <div id="tagNote"></div>
+</div>
+<div id="chat" class="panel hidden" aria-label="Conversation">
+  <div id="chatHead"><b>Conversation</b><span id="chatState"></span><button id="chatClose" title="Hide (C)">×</button></div>
+  <div id="chatLog"></div>
+  <form id="chatForm"><textarea id="chatInput" rows="1" placeholder="Message Claude… (Enter sends, Shift+Enter for a new line)"></textarea><button id="chatSend" type="submit">Send</button></form>
+  <div id="chatNote"></div>
+</div>
+<div id="tip"></div>
+<script src="sounds.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>

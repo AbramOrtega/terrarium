@@ -1,0 +1,12 @@
+{
+  "name": "terrarium",
+  "description": "Terrarium, a Claude Code mod: your conversation as a living 3D island.",
+  "owner": { "name": "AbramOrtega", "url": "https://github.com/AbramOrtega" },
+  "plugins": [
+    {
+      "name": "terrarium",
+      "source": "./",
+      "description": "Your conversation as a living 3D island on the back of a turtle swimming through space."
+    }
+  ]
+}

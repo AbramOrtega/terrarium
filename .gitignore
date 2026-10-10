@@ -1,0 +1,6 @@
+# Written by Claude Code each time it loads the mod.
+.claude-plugin/types/
+node_modules/
+*.blend1
+.DS_Store
+Thumbs.db
