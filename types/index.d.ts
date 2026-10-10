@@ -348,6 +348,8 @@ export type TerrariumView = {
   isMuted?: boolean
   /** The last message sent from the 3D window's chat panel, by its id: each is taken once. */
   promptId?: string
+  /** The 3D window's key for this session: its server answers only the page opened with it. Kept across reloads, so an open window stays served. */
+  viewerKey?: string
 }
 
 declare module 'claude-code' {

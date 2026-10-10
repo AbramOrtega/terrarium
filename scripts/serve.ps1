@@ -1,6 +1,12 @@
-param([string]$Root, [int]$Port = 47615)
+param([string]$Root, [int]$Port = 47615, [string]$Key = '')
 # The 3D viewer's server: serves the files of one folder to this machine alone,
 # so the page runs as a web page (a file:// page may be frozen as a snapshot).
+# The key is made fresh each session and the page is opened with it (/?k=…).
+# Only the page's own code is served without it: the island, the conversation
+# and every upload need it, so another account on this machine, or another
+# site's page, gets nothing and can send nothing. No key, no server.
+if ($Key -cnotmatch '^[0-9a-f]{32}$') { Write-Output 'terrarium-server: no key'; exit 0 }
+$open = @('', 'index.html', 'engine.js', 'sounds.js')
 $root = [System.IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$Port/")
@@ -25,6 +31,10 @@ while ($listener.IsListening) {
   try {
     if ($hosts -notcontains $ctx.Request.Headers['Host']) { $ctx.Response.StatusCode = 403; continue }
     $name = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart('/'))
+    $given = $ctx.Request.QueryString['k']
+    if (-not $given) { $given = $ctx.Request.Headers['X-Terrarium-Key'] }
+    $isOpen = $ctx.Request.HttpMethod -eq 'GET' -and $open -contains $name
+    if ($given -cne $Key -and -not $isOpen) { $ctx.Response.StatusCode = 403; continue }
     if ($ctx.Request.HttpMethod -eq 'POST') {
       $leaf = $name -replace '^upload/', ''
       $size = $ctx.Request.ContentLength64

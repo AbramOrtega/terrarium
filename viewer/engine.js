@@ -9,6 +9,11 @@ const BOTTOM = -2.6
 const TAU = Math.PI * 2
 const BIOME = { seabed: 0, beach: 1, meadow: 2, forest: 3, dry: 4, rock: 5, snow: 6, river: 7, lava: 8, marsh: 9 }
 const DECOR = { none: 0, pine: 1, oak: 2, birch: 3, bush: 4, rock: 5, flowers: 6, reeds: 7, palm: 8, snowpine: 9, mushroom: 10 }
+// The key this window was opened with (/?k=…): its server gives the island, the
+// conversation and every upload only to a request that carries it.
+const VIEWER_KEY = new URLSearchParams(location.search).get('k') || ''
+const keyed = url => `${url}${url.includes('?') ? '&' : '?'}k=${encodeURIComponent(VIEWER_KEY)}`
+const KEYED = { 'X-Terrarium-Key': VIEWER_KEY }
 
 // ------------------------------------------------------------------ math
 
@@ -4908,7 +4913,7 @@ const renderChat = data => {
 const pollChat = async () => {
   if (!chat.open) return
   try {
-    const r = await fetch(`chat.json?${Date.now()}`, { cache: 'no-store' })
+    const r = await fetch(keyed(`chat.json?${Date.now()}`), { cache: 'no-store' })
     if (!r.ok) throw new Error(String(r.status))
     const text = await r.text()
     if (text === chat.seen) return
@@ -4942,7 +4947,7 @@ const sendChat = async () => {
   if (text.length > 8000) { $('chatNote').textContent = 'That is longer than a message from here may be (8000 characters).'; return }
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   try {
-    const r = await fetch('upload/prompt.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) })
+    const r = await fetch('upload/prompt.json', { method: 'POST', headers: { ...KEYED, 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) })
     if (!r.ok) throw new Error(`the server said ${r.status}`)
     chat.pending.push({ id, text, at: Date.now() })
     box.value = ''; fitInput()
@@ -5113,7 +5118,7 @@ const maybeMirror = VP => {
     labels.push([Math.round(x), Math.round(y), String(p.label).slice(0, 100)])
     if (labels.length >= 90) break
   }
-  fetch('upload/mirror.json', { method: 'POST', body: JSON.stringify({ at: Date.now(), jpeg: url.slice(url.indexOf(',') + 1), labels }) }).catch(() => { })
+  fetch('upload/mirror.json', { method: 'POST', headers: KEYED, body: JSON.stringify({ at: Date.now(), jpeg: url.slice(url.indexOf(',') + 1), labels }) }).catch(() => { })
 }
 
 // Each grass blade as three triangles, standing still, for the photo.
@@ -5165,8 +5170,8 @@ const maybePhoto = info => {
     space: { sun: info.sunPos, moon: info.moonPos, air: [seaY(), I.seaRadius * AIR_WIDE, I.seaRadius * AIR_HIGH] },
   }
   notice('📷 Sending the scene to Blender…')
-  fetch('upload/photo-scene.bin', { method: 'POST', body: all.buffer })
-    .then(r => { if (!r.ok) throw new Error(String(r.status)); return fetch('upload/photo-scene.json', { method: 'POST', body: JSON.stringify(scene) }) })
+  fetch('upload/photo-scene.bin', { method: 'POST', headers: KEYED, body: all.buffer })
+    .then(r => { if (!r.ok) throw new Error(String(r.status)); return fetch('upload/photo-scene.json', { method: 'POST', headers: KEYED, body: JSON.stringify(scene) }) })
     .then(r => notice(r.ok ? '📷 Blender is rendering the photo; it opens when done.' : '📷 The photo could not be sent.'))
     .catch(() => notice('📷 The photo could not be sent.'))
 }
@@ -5291,7 +5296,7 @@ const setSound = (on, tell) => {
   if (Snd.master) Snd.master.gain.setTargetAtTime(on ? VOLUME : 0, Snd.ctx.currentTime, .05)
   showSound()
   // Tell the mod, so the side pane's toggle says the same.
-  if (tell) fetch('upload/sound.json', { method: 'POST', body: JSON.stringify({ muted: !on, at: Date.now() }) }).catch(() => { })
+  if (tell) fetch('upload/sound.json', { method: 'POST', headers: KEYED, body: JSON.stringify({ muted: !on, at: Date.now() }) }).catch(() => { })
 }
 const toggleSound = () => {
   const locked = !Snd.ctx || Snd.ctx.state !== 'running'
@@ -5870,7 +5875,7 @@ window.__terrarium = apply
 
 const poll = () => {
   const tag = document.createElement('script')
-  tag.src = 'frame.js?' + Date.now()
+  tag.src = keyed('frame.js?' + Date.now())
   tag.onload = tag.onerror = () => tag.remove()
   document.head.appendChild(tag)
 }

@@ -92,7 +92,7 @@ The full legend is in the pane and in the 3D window (`L`).
 
 ## Privacy
 
-- **Everything stays on your machine.** The 3D window is served from `localhost:47615` only, and uploads to it are checked by their Origin.
+- **Everything stays on your machine.** The 3D window is served from `localhost:47615` only. Its server answers only the window Terrarium opened, with a random key made for each session. Other websites and other accounts on the same computer can't read the island or the conversation, or send messages into it.
 - **File contents are never stored or shown.** Terrarium reads the files Claude touches only to count things: lines, TODOs and imports.
 - **To read the session and the machine**, it runs `git status` and `git log` (only in projects with a remote) and Windows PowerShell for the machine's readings.
 - **The 3D window's chat box sends what you type to Claude Code as your own message.**

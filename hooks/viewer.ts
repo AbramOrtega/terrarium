@@ -62,6 +62,17 @@ export const frameData = (
 export const frameScript = (data: ReturnType<typeof frameData>): string =>
   `window.__terrarium && window.__terrarium(${JSON.stringify(data)})\n`
 
+/** The 3D window's key, from 16 random bytes: what its server asks of every request but the page's own code. */
+export const viewerKeyOf = (bytes: Uint8Array): string => Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+export const isViewerKey = (key: unknown): key is string => typeof key === 'string' && /^[0-9a-f]{32}$/.test(key)
+
+/** The server's script with its folder, port and key written where its parameters were. */
+export const serverScript = (source: string, root: string, port: number, key: string): string => {
+  if (!isViewerKey(key)) throw new Error('the 3D window needs a key')
+  const folder = root.replace(/\//g, '\\').replace(/'/g, "''")
+  return source.replace(/^param\([^)]*\)/m, () => `$Root = '${folder}'; $Port = ${Math.trunc(port)}; $Key = '${key}'`)
+}
+
 const vec = (v: unknown, n: number, fallback: number[]): number[] =>
   Array.isArray(v) && v.length === n && v.every(x => typeof x === 'number' && Number.isFinite(x)) ? (v as number[]) : fallback
 const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback)

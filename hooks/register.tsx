@@ -4,7 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { TerrariumSystem, TerrariumView, TerrariumWorld } from '../types'
 import { renderRaster } from './render-raster'
 import { mirrorSvg, renderSvg } from './render-svg'
-import { frameData, frameScript, photoScene } from './viewer'
+import { frameData, frameScript, isViewerKey, photoScene, serverScript, viewerKeyOf } from './viewer'
 import { type ChatItem, chatItems, promptFromUpload, withLive } from './chat'
 import {
   editSpots,
@@ -645,13 +645,22 @@ const encodePowerShell = (script: string): string => {
   return bytes.toBase64()
 }
 
+/** The 3D window's key: made once a session and kept across reloads, so a window left open stays served. */
+const viewerKey = async ($: EngineInterface): Promise<string> => {
+  const known = (await read($, view)).viewerKey
+  if (isViewerKey(known)) return known
+  const fresh = viewerKeyOf(crypto.getRandomValues(new Uint8Array(16)))
+  await update($, view, v => (isViewerKey(v.viewerKey) ? v : { ...v, viewerKey: fresh }))
+  const kept = (await read($, view)).viewerKey
+  return isViewerKey(kept) ? kept : fresh
+}
+
 /** Starts the viewer's server for the module's life (a reload stops it); false where it cannot. */
 const startServer = async ($: EngineInterface, dir: string): Promise<boolean> => {
   if (isServing) return true
   if ((await $.env.get('OS')) !== 'Windows_NT') return false
   const source = await $.fs.read(`${$.plugin.root}/scripts/serve.ps1`)
-  const root = dir.replace(/\//g, '\\').replace(/'/g, "''")
-  const script = source.replace(/^param\([^)]*\)/m, `$Root = '${root}'; $Port = ${PORT}`)
+  const script = serverScript(source, dir, PORT, await viewerKey($))
   isServing = true
   void (async () => {
     try {
@@ -680,7 +689,7 @@ const openFullscreen = async ($: EngineInterface): Promise<string> => {
   await update($, view, v => ({ ...v, isLive: true }))
   await writeFrame($, true)
   const isServed = await ensureServer($, dir)
-  const page = isServed ? VIEWER_URL : `${dir}/index.html`
+  const page = isServed ? `${VIEWER_URL}?k=${await viewerKey($)}` : `${dir}/index.html`
   const isWindows = (await $.env.get('OS')) === 'Windows_NT'
   const home = (await $.env.get('HOME')) ?? ''
   const argv = isWindows
@@ -691,7 +700,7 @@ const openFullscreen = async ($: EngineInterface): Promise<string> => {
   } catch {
     return `Open ${page} in a browser to see the island in 3D.`
   }
-  return `The island opened in 3D at ${page}; press F there for fullscreen. It follows the conversation live.`
+  return `The island opened in 3D at ${isServed ? VIEWER_URL : page}; press F there for fullscreen. It follows the conversation live.`
 }
 
 export const register: Register = on => {

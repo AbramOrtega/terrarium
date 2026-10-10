@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { mirrorSvg, renderSvg } from '../hooks/render-svg'
 import { chatItems, promptFromUpload } from '../hooks/chat'
-import { frameData, photoScene } from '../hooks/viewer'
+import { frameData, isViewerKey, photoScene, serverScript, viewerKeyOf } from '../hooks/viewer'
 import { beastAt, beastShape, broodHue, familyOf, homeAt, modelName, onAgentDone, onAgentList, onSpawn, spawnShape, spawnText, bridgesOf, busyOf, kitsOf, walksOf, costText, crawlMs, districtsOf, subjectStem, testsOf, editSpots, emptyWorld, historyText, importsOf, measure, onEdited, onMeasure, weathering, routeOf, streetsOf, vernacular, onCompact, glowOf, isDirty, islandRadius, moonArc, onActivity, onCost, onGit, onPrompt, onReading, onSpinner, onStep, onSystem, onTests, onTool, onToolError, onTurnDone, onWaiting, parseGitStatus, parseTests, readMood, styleOf, sunHour, throughput, weatherOf, upgrade } from '../hooks/world'
 
 const VIEW = { yaw: 35, isOrbiting: false, isLegendOpen: false, isWide: false, isLive: false }
@@ -913,4 +913,17 @@ test('the chat panel shows what was said and done, and takes back only a well-fo
   for (const bad of ['nope', '{}', JSON.stringify({ id: 'x', text: 'hi' }), JSON.stringify({ id: 'abc-123', text: '   ' }), JSON.stringify({ id: 'abc-123', text: 'x'.repeat(8001) }), JSON.stringify({ id: '../../etc', text: 'hi' }), JSON.stringify({ id: 'abc-123', text: 42 })]) {
     expect(promptFromUpload(bad)).toBeUndefined()
   }
+})
+
+test('the 3D window is served only with its key', () => {
+  const key = viewerKeyOf(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255]))
+  expect(key).toBe('000102030405060708090a0b0c0d0eff')
+  expect(isViewerKey(key)).toBe(true)
+  for (const bad of [undefined, '', 'abc', key.toUpperCase(), `${key}0`, "000102030405060708090a0b0c0d0e'f"]) expect(isViewerKey(bad)).toBe(false)
+  const source = "param([string]$Root, [int]$Port = 47615, [string]$Key = '')\n$x = 1\n"
+  const script = serverScript(source, "C:/Users/o'neil/.claude/terrarium", 47615, key)
+  expect(script).toBe(String.raw`$Root = 'C:\Users\o''neil\.claude\terrarium'; $Port = 47615; $Key = '` + key + "'\n$x = 1\n")
+  // A folder with replacement patterns in its name stays as it is.
+  expect(serverScript(source, "C:/a$'b$&c", 1, key)).toContain(String.raw`$Root = 'C:\a$''b$&c'`)
+  expect(() => serverScript(source, 'C:/x', 1, 'not-a-key')).toThrow()
 })
